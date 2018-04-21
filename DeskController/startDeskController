@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+import ev3dev.ev3 as ev3
+import signal, sys, os, os.path
+
+class DeskController:
+  def __init__(self, dh=100, uh=150, sound=False):
+    self.button = ev3.TouchSensor('in1')
+    self.motor = ev3.LargeMotor('outD')
+    self.us = ev3.UltrasonicSensor('in4')
+    self.sitting_height = dh
+    self.standing_height = uh
+    self.current_pos = 0
+    self.motor_speed=100
+    self.last_log = 1
+    self.sound = sound
+    signal.signal(signal.SIGTERM, self.exit)
+    signal.signal(signal.SIGINT, self.exit)
+
+  def exit(self, signum, frame):
+    print('exiting')
+    self.unpress()
+    sys.exit(0)
+
+  def log(self, message):
+    if self.sound:
+       ev3.Sound.speak(message).wait()
+    print(message)
+
+  def is_sitting(self):
+    return abs(self.current_height() - self.sitting_height) < abs(self.current_height() - self.standing_height)
+  
+  def current_height(self):
+    return self.us.distance_centimeters
+
+  def press_down(self):
+    self.log("Going to sitting position: {}".format(self.sitting_height))
+    self.current_pos=-1
+    self.rotate(self.motor_speed)
+
+  def press_up(self):
+    self.log("Going to standing position: {}".format(self.standing_height))
+    self.current_pos=1
+    self.rotate(-self.motor_speed)
+
+  def unpress(self):
+    self.rotate(self.current_pos*self.motor_speed)
+    self.current_pos=0   
+
+  def rotate(self, degrees):
+    self.motor.run_timed(time_sp=500, speed_sp=degrees)
+  
+  def is_desired_pos(self):
+    if self.last_log % 1000 == 0:
+      print("Current height: {}".format(self.current_height()))
+      self.last_log = 0
+    self.last_log += 1
+    result = ( (self.current_pos == -1 and self.current_height() <= self.sitting_height)
+           or (self.current_pos == 1 and self.current_height() >= self.standing_height)
+           or (self.current_pos == 0))    
+    return result
+
+  def start(self):
+    self.log("Starting desk controller")
+    while True:
+      if self.button.is_pressed:
+        if self.is_sitting():
+          self.press_up()
+        else:
+          self.press_down()
+        while not self.is_desired_pos():
+          continue
+        self.unpress()
+        self.log("Reached position {}".format(self.current_height()))
+
+if __name__ == "__main__":
+  DeskController().start()
