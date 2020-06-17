@@ -1,4 +1,5 @@
 {
     "ev3devBrowser.download.directory": "scripts",
-    "python.linting.pylintEnabled": false
+    "python.linting.pylintEnabled": true,
+    "python.pythonPath": "/usr/bin/python3"
 }
